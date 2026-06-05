@@ -6,49 +6,14 @@ import json
 import threading
 import tkinter as tk
 from tkinter import ttk, messagebox
-import urllib.request
+import pyautogui
+import pygetwindow as gw
 
-# Функции сетапа
-def install_python_if_needed():
-    print("Проверка наличия Python...")
-    try:
-        subprocess.run(["python", "--version"], check=True, capture_output=True)
-        print("Python уже установлен")
-        return True
-    except:
-        print("Python не найден. Скачиваю Python 3.12...")
-        python_installer = "python_installer.exe"
-        urllib.request.urlretrieve("https://www.python.org/ftp/python/3.12.0/python-3.12.0.exe", python_installer)
-        subprocess.run([python_installer, "/quiet", "InstallAllUsers=1", "PrependPath=1"])
-        time.sleep(30)
-        os.remove(python_installer)
-        return True
-
-def install_libraries():
-    print("Устанавливаю библиотеки...")
-    libraries = ["pyautogui", "pygetwindow", "pillow", "pyscreeze"]
-    for lib in libraries:
-        print(f"Устанавливаю {lib}...")
-        subprocess.run([sys.executable, "-m", "pip", "install", lib])
-
-def find_dnplayer_path():
-    print("Поиск dnplayer.exe...")
-    for root, dirs, files in os.walk("C:\\"):
-        try:
-            if "dnplayer.exe" in files:
-                path = os.path.join(root, "dnplayer.exe")
-                print(f"Найдено: {path}")
-                return path
-        except:
-            continue
-    return None
-
-# Основное приложение
 class ModernBotApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Hustle Castle Bot")
-        self.root.geometry("500x800")
+        self.root.geometry("500x750")
         self.root.resizable(False, False)
         self.root.configure(bg="#0f0f0f")
         
@@ -56,7 +21,6 @@ class ModernBotApp:
             "bg": "#0f0f0f",
             "card": "#1e1e1e",
             "accent": "#6c63ff",
-            "accent_hover": "#5a52d5",
             "success": "#00b894",
             "warning": "#fdcb6e",
             "danger": "#ff7675",
@@ -68,17 +32,18 @@ class ModernBotApp:
         self.paused = False
         self.mode = "arena"
         self.arena_round = 0
+        self.portal_round = 0
         
         self.arena_file = "arena_coords.json"
+        self.portal_file = "portal_coords.json"
         self.dnplayer_file = "dnplayer_coords.json"
         self.cathedral_file = "cathedral_coords.json"
-        self.dungeon_file = "dungeon_coords.json"
         self.bay_file = "bay_coords.json"
         
         self.arena_coords = self.load_json(self.arena_file)
+        self.portal_coords = self.load_json(self.portal_file)
         self.dnplayer_coords = self.load_json(self.dnplayer_file)
         self.cathedral_coords = self.load_json(self.cathedral_file)
-        self.dungeon_coords = self.load_json(self.dungeon_file)
         self.bay_coords = self.load_json(self.bay_file)
         
         self.setup_ui()
@@ -100,8 +65,9 @@ class ModernBotApp:
         self.create_status_card()
         self.create_ldplayer_card()
         
+        # Основные настройки (как вкладки)
         self.coords_notebook = ttk.Notebook(self.root)
-        self.coords_notebook.pack(fill="x", padx=20, pady=10)
+        self.coords_notebook.pack(fill="both", expand=True, padx=20, pady=10)
         
         style = ttk.Style()
         style.configure("TNotebook", background=self.colors["card"], borderwidth=0)
@@ -109,8 +75,8 @@ class ModernBotApp:
         style.map("TNotebook.Tab", background=[("selected", self.colors["accent"])])
         
         self.create_arena_tab()
+        self.create_portal_tab()
         self.create_cathedral_tab()
-        self.create_dungeon_tab()
         self.create_bay_tab()
     
     def create_mode_card(self):
@@ -124,7 +90,7 @@ class ModernBotApp:
         modes_frame.pack(pady=10, padx=15)
         
         self.mode_var = tk.StringVar(value="arena")
-        modes = [("⚔ Арена", "arena"), ("⛪ Собор", "cathedral"), ("🏰 Подземелье", "dungeon"), ("⚓ Бухта", "bay")]
+        modes = [("⚔ Арена", "arena"), ("🌀 Портал", "portal"), ("⛪ Собор", "cathedral"), ("⚓ Бухта", "bay")]
         
         self.mode_buttons = []
         for i, (text, value) in enumerate(modes):
@@ -158,24 +124,20 @@ class ModernBotApp:
         controls = tk.Frame(card, bg=self.colors["card"])
         controls.pack(pady=10, padx=15)
         
-        self.start_btn = self.create_button(controls, "▶ СТАРТ", self.start_bot, self.colors["success"])
+        self.start_btn = tk.Button(controls, text="▶ СТАРТ", font=("Segoe UI", 10, "bold"),
+                                  bg=self.colors["success"], fg="white", relief="flat", bd=0,
+                                  padx=15, pady=8, cursor="hand2", command=self.start_bot)
         self.start_btn.pack(side="left", expand=True, fill="x", padx=5)
         
-        self.pause_btn = self.create_button(controls, "⏸ ПАУЗА", self.pause_bot, self.colors["warning"], disabled=True)
+        self.pause_btn = tk.Button(controls, text="⏸ ПАУЗА", font=("Segoe UI", 10, "bold"),
+                                  bg=self.colors["warning"], fg="black", relief="flat", bd=0,
+                                  padx=15, pady=8, cursor="hand2", command=self.pause_bot, state="disabled")
         self.pause_btn.pack(side="left", expand=True, fill="x", padx=5)
         
-        self.stop_btn = self.create_button(controls, "⏹ СТОП", self.stop_bot, self.colors["danger"], disabled=True)
+        self.stop_btn = tk.Button(controls, text="⏹ СТОП", font=("Segoe UI", 10, "bold"),
+                                 bg=self.colors["danger"], fg="white", relief="flat", bd=0,
+                                 padx=15, pady=8, cursor="hand2", command=self.stop_bot, state="disabled")
         self.stop_btn.pack(side="left", expand=True, fill="x", padx=5)
-    
-    def create_button(self, parent, text, command, color, disabled=False):
-        btn = tk.Button(parent, text=text, font=("Segoe UI", 10, "bold"),
-                       bg=color, fg="white", relief="flat", bd=0,
-                       padx=15, pady=8, cursor="hand2",
-                       activebackground=self.colors["accent_hover"],
-                       activeforeground="white", command=command)
-        if disabled:
-            btn.config(state="disabled", bg=self.colors["text_secondary"])
-        return btn
     
     def create_status_card(self):
         card = tk.Frame(self.root, bg=self.colors["card"], relief="flat", bd=0)
@@ -289,57 +251,111 @@ class ModernBotApp:
             btn.grid(row=(i-5)//3, column=(i-5)%3, padx=3, pady=3)
             self.opponent_btns[i] = btn
         
-        save_btn = tk.Button(scrollable, text="💾 СОХРАНИТЬ ВСЕ НАСТРОЙКИ АРЕНЫ", font=("Segoe UI", 10),
+        save_btn = tk.Button(scrollable, text="💾 СОХРАНИТЬ НАСТРОЙКИ АРЕНЫ", font=("Segoe UI", 10),
                             bg=self.colors["accent"], fg="white", relief="flat", bd=0,
                             padx=15, pady=8, cursor="hand2", command=self.save_arena_coords)
+        save_btn.pack(pady=(15, 20))
+    
+    def create_portal_tab(self):
+        tab = tk.Frame(self.coords_notebook, bg=self.colors["card"])
+        self.coords_notebook.add(tab, text="🌀 Портал")
+        
+        canvas = tk.Canvas(tab, bg=self.colors["card"], highlightthickness=0)
+        scrollbar = tk.Scrollbar(tab, orient="vertical", command=canvas.yview)
+        scrollable = tk.Frame(canvas, bg=self.colors["card"])
+        
+        scrollable.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.create_window((0, 0), window=scrollable, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        
+        tk.Label(scrollable, text="ОСНОВНЫЕ КНОПКИ", font=("Segoe UI", 10, "bold"),
+                bg=self.colors["card"], fg=self.colors["accent"]).pack(anchor="w", padx=15, pady=(10, 5))
+        
+        self.portal_btns = {}
+        portal_buttons = [("Вход в портал", "entry"), ("Уровень внизу", "level_down"), 
+                         ("Бой", "fight"), ("Домой", "home")]
+        
+        for text, key in portal_buttons:
+            frame = tk.Frame(scrollable, bg=self.colors["card"])
+            frame.pack(fill="x", padx=15, pady=5)
+            
+            coords = self.portal_coords.get(key, {"x": 0, "y": 0})
+            status = "✅" if coords['x'] != 0 else "❌"
+            
+            label = tk.Label(frame, text=f"{status} {text}:", font=("Segoe UI", 10),
+                            bg=self.colors["card"], fg=self.colors["text"], width=15, anchor="w")
+            label.pack(side="left")
+            
+            coord_label = tk.Label(frame, text=f"({coords['x']}, {coords['y']})" if coords['x'] != 0 else "не выбрано",
+                                  font=("Segoe UI", 9), bg=self.colors["card"], fg=self.colors["text_secondary"])
+            coord_label.pack(side="left", padx=10)
+            
+            set_btn = tk.Button(frame, text="Установить", font=("Segoe UI", 9),
+                               bg=self.colors["bg"], fg=self.colors["accent"], relief="flat", bd=0,
+                               cursor="hand2", command=lambda k=key, cl=coord_label, lb=label: self.set_portal_coord(k, cl, lb))
+            set_btn.pack(side="right")
+            
+            self.portal_btns[key] = {"label": coord_label, "status": label}
+        
+        save_btn = tk.Button(scrollable, text="💾 СОХРАНИТЬ НАСТРОЙКИ ПОРТАЛА", font=("Segoe UI", 10),
+                            bg=self.colors["accent"], fg="white", relief="flat", bd=0,
+                            padx=15, pady=8, cursor="hand2", command=self.save_portal_coords)
         save_btn.pack(pady=(15, 20))
     
     def create_cathedral_tab(self):
         tab = tk.Frame(self.coords_notebook, bg=self.colors["card"])
         self.coords_notebook.add(tab, text="⛪ Собор")
-        self.create_simple_tab(tab, self.cathedral_coords, "cathedral", self.cathedral_file)
-    
-    def create_dungeon_tab(self):
-        tab = tk.Frame(self.coords_notebook, bg=self.colors["card"])
-        self.coords_notebook.add(tab, text="🏰 Подземелье")
-        self.create_simple_tab(tab, self.dungeon_coords, "dungeon", self.dungeon_file)
+        
+        frame = tk.Frame(tab, bg=self.colors["card"])
+        frame.pack(expand=True, fill="both", padx=20, pady=20)
+        
+        tk.Label(frame, text="КНОПКА ВХОДА", font=("Segoe UI", 10, "bold"),
+                bg=self.colors["card"], fg=self.colors["accent"]).pack(pady=10)
+        
+        coords = self.cathedral_coords.get("entry", {"x": 0, "y": 0})
+        status = "✅" if coords['x'] != 0 else "❌"
+        
+        coord_label = tk.Label(frame, text=f"{status} ({coords['x']}, {coords['y']})" if coords['x'] != 0 else "❌ не выбрано",
+                              font=("Segoe UI", 10), bg=self.colors["card"], fg=self.colors["text"])
+        coord_label.pack(pady=5)
+        
+        set_btn = tk.Button(frame, text="Установить координаты", font=("Segoe UI", 10),
+                           bg=self.colors["accent"], fg="white", relief="flat", bd=0,
+                           padx=15, pady=8, cursor="hand2",
+                           command=lambda: self.set_simple_coord("cathedral", self.cathedral_file, coord_label))
+        set_btn.pack(pady=10)
     
     def create_bay_tab(self):
         tab = tk.Frame(self.coords_notebook, bg=self.colors["card"])
         self.coords_notebook.add(tab, text="⚓ Бухта")
-        self.create_simple_tab(tab, self.bay_coords, "bay", self.bay_file)
-    
-    def create_simple_tab(self, tab, coords_dict, mode_name, save_file):
+        
         frame = tk.Frame(tab, bg=self.colors["card"])
-        frame.pack(expand=True, fill="both")
+        frame.pack(expand=True, fill="both", padx=20, pady=20)
         
-        tk.Label(frame, text=f"НАСТРОЙКА {mode_name.upper()}", font=("Segoe UI", 12, "bold"),
-                bg=self.colors["card"], fg=self.colors["accent"]).pack(pady=20)
+        tk.Label(frame, text="КНОПКА ВХОДА", font=("Segoe UI", 10, "bold"),
+                bg=self.colors["card"], fg=self.colors["accent"]).pack(pady=10)
         
-        info_frame = tk.Frame(frame, bg=self.colors["card"])
-        info_frame.pack(pady=20)
-        
-        coords = coords_dict.get("entry", {"x": 0, "y": 0})
+        coords = self.bay_coords.get("entry", {"x": 0, "y": 0})
         status = "✅" if coords['x'] != 0 else "❌"
         
-        tk.Label(info_frame, text=f"{status} Кнопка входа:", font=("Segoe UI", 11),
-                bg=self.colors["card"], fg=self.colors["text"]).pack()
-        
-        coord_label = tk.Label(info_frame, text=f"({coords['x']}, {coords['y']})" if coords['x'] != 0 else "не выбрано",
-                              font=("Segoe UI", 10), bg=self.colors["card"], fg=self.colors["text_secondary"])
+        coord_label = tk.Label(frame, text=f"{status} ({coords['x']}, {coords['y']})" if coords['x'] != 0 else "❌ не выбрано",
+                              font=("Segoe UI", 10), bg=self.colors["card"], fg=self.colors["text"])
         coord_label.pack(pady=5)
         
-        set_btn = tk.Button(info_frame, text="Установить координаты", font=("Segoe UI", 10),
+        set_btn = tk.Button(frame, text="Установить координаты", font=("Segoe UI", 10),
                            bg=self.colors["accent"], fg="white", relief="flat", bd=0,
                            padx=15, pady=8, cursor="hand2",
-                           command=lambda: self.set_simple_coord(mode_name, save_file, coord_label))
+                           command=lambda: self.set_simple_coord("bay", self.bay_file, coord_label))
         set_btn.pack(pady=10)
     
     def set_simple_coord(self, mode_name, save_file, label):
         self.current_simple_mode = mode_name
         self.current_simple_file = save_file
         self.current_simple_label = label
-        self.update_status(f"Наведись на кнопку '{mode_name}' и нажми Enter", "waiting")
+        self.update_status(f"Наведись на кнопку входа в {mode_name} и нажми Enter", "waiting")
         self.root.bind('<Return>', self.on_simple_coord_set)
     
     def on_simple_coord_set(self, event):
@@ -350,13 +366,26 @@ class ModernBotApp:
         
         if self.current_simple_mode == "cathedral":
             self.cathedral_coords = coords
-        elif self.current_simple_mode == "dungeon":
-            self.dungeon_coords = coords
         elif self.current_simple_mode == "bay":
             self.bay_coords = coords
         
-        self.current_simple_label.config(text=f"({pos.x}, {pos.y})")
+        self.current_simple_label.config(text=f"✅ ({pos.x}, {pos.y})")
         self.update_status(f"Координаты для {self.current_simple_mode} сохранены!", "success")
+        self.root.unbind('<Return>')
+    
+    def set_portal_coord(self, key, label, status_label):
+        self.current_portal_key = key
+        self.current_portal_label = label
+        self.current_portal_status_label = status_label
+        self.update_status(f"Наведись на кнопку '{key}' в портале и нажми Enter", "waiting")
+        self.root.bind('<Return>', self.on_portal_coord_set)
+    
+    def on_portal_coord_set(self, event):
+        pos = pyautogui.position()
+        self.portal_coords[self.current_portal_key] = {"x": pos.x, "y": pos.y}
+        self.current_portal_label.config(text=f"({pos.x}, {pos.y})")
+        self.current_portal_status_label.config(text=f"✅ {self.current_portal_status_label.cget('text')[2:]}")
+        self.update_status(f"Координаты для '{self.current_portal_key}' сохранены!", "success")
         self.root.unbind('<Return>')
     
     def set_arena_coord(self, key, label, status_label):
@@ -402,6 +431,10 @@ class ModernBotApp:
         self.save_json(self.arena_file, self.arena_coords)
         self.update_status("Настройки арены сохранены!", "success")
     
+    def save_portal_coords(self):
+        self.save_json(self.portal_file, self.portal_coords)
+        self.update_status("Настройки портала сохранены!", "success")
+    
     def load_json(self, filename):
         if os.path.exists(filename):
             with open(filename, "r") as f:
@@ -412,14 +445,20 @@ class ModernBotApp:
         with open(filename, "w") as f:
             json.dump(data, f, indent=4)
     
+    def find_dnplayer_path(self):
+        for root, dirs, files in os.walk("C:\\"):
+            try:
+                if "dnplayer.exe" in files:
+                    return os.path.join(root, "dnplayer.exe")
+            except:
+                continue
+        return None
+    
     def launch_game(self):
-        dnplayer_path = find_dnplayer_path()
+        dnplayer_path = self.find_dnplayer_path()
         if not dnplayer_path:
             self.update_status("Ошибка: не найден dnplayer.exe!", "error")
             return
-        
-        import pyautogui
-        import pygetwindow as gw
         
         subprocess.Popen([dnplayer_path])
         self.update_status("Запускаю LDPlayer...", "waiting")
@@ -452,9 +491,23 @@ class ModernBotApp:
         self.root.update()
     
     def start_bot(self):
+        if self.mode == "arena":
+            needed = ["entry", "participate", "confirm", "fight", "reward", "home"]
+            for key in needed:
+                if key not in self.arena_coords or self.arena_coords[key]['x'] == 0:
+                    self.update_status(f"Ошибка: не настроена кнопка {key}", "error")
+                    return
+        elif self.mode == "portal":
+            needed = ["entry", "level_down", "fight", "home"]
+            for key in needed:
+                if key not in self.portal_coords or self.portal_coords[key]['x'] == 0:
+                    self.update_status(f"Ошибка: не настроена кнопка {key} в портале", "error")
+                    return
+        
         self.running = True
         self.paused = False
         self.arena_round = 0
+        self.portal_round = 0
         self.start_btn.config(state="disabled", bg=self.colors["text_secondary"])
         self.pause_btn.config(state="normal", bg=self.colors["warning"])
         self.stop_btn.config(state="normal", bg=self.colors["danger"])
@@ -489,20 +542,26 @@ class ModernBotApp:
             
             if self.mode == "arena":
                 self.do_arena()
+            elif self.mode == "portal":
+                self.do_portal()
             else:
                 self.do_simple_mode()
             
             if self.running and not self.paused:
-                self.arena_round += 1
-                self.update_status(f"Арена завершена! Раунд {self.arena_round}", "success")
-                self.progress_label.config(text=f"✅ Раунд {self.arena_round} завершен")
+                if self.mode == "arena":
+                    self.arena_round += 1
+                    self.update_status(f"Арена завершена! Раунд {self.arena_round}", "success")
+                    self.progress_label.config(text=f"✅ Раунд {self.arena_round} завершен")
+                elif self.mode == "portal":
+                    self.portal_round += 1
+                    self.update_status(f"Портал завершен! Раунд {self.portal_round}", "success")
+                    self.progress_label.config(text=f"✅ Раунд {self.portal_round} завершен")
                 time.sleep(3)
     
     def do_simple_mode(self):
         import pyautogui
         coords_map = {
             "cathedral": self.cathedral_coords,
-            "dungeon": self.dungeon_coords,
             "bay": self.bay_coords
         }
         coords = coords_map.get(self.mode, {})
@@ -515,15 +574,37 @@ class ModernBotApp:
             self.update_status(f"Координаты для {self.mode} не настроены!", "error")
             self.stop_bot()
     
+    def do_portal(self):
+        import pyautogui
+        coords = self.portal_coords
+        
+        if self.portal_round == 0:
+            self.update_status("Захожу в портал...", "working")
+            pyautogui.click(coords["entry"]["x"], coords["entry"]["y"])
+            time.sleep(2)
+        
+        self.update_status("Нажимаю 'Уровень внизу'...", "working")
+        pyautogui.click(coords["level_down"]["x"], coords["level_down"]["y"])
+        time.sleep(2)
+        
+        self.update_status("Нажимаю 'Бой'...", "working")
+        pyautogui.click(coords["fight"]["x"], coords["fight"]["y"])
+        time.sleep(2)
+        
+        self.update_status("Ожидаю 18 секунд...", "waiting")
+        for i in range(18):
+            if not self.running or self.paused:
+                return
+            self.progress_label.config(text=f"⏳ Бой... {18-i} сек")
+            time.sleep(1)
+        
+        self.update_status("Нажимаю 'Домой'...", "working")
+        pyautogui.click(coords["home"]["x"], coords["home"]["y"])
+        time.sleep(2)
+    
     def do_arena(self):
         import pyautogui
         coords = self.arena_coords
-        needed = ["entry", "participate", "confirm", "fight", "reward", "home"]
-        for key in needed:
-            if key not in coords or coords[key]['x'] == 0:
-                self.update_status(f"Ошибка: не настроена кнопка {key}", "error")
-                self.stop_bot()
-                return
         
         if self.arena_round == 0:
             self.update_status("Захожу на арену...", "working")
@@ -585,11 +666,6 @@ class ModernBotApp:
         time.sleep(2)
 
 def main():
-    # Сетап
-    install_python_if_needed()
-    install_libraries()
-    
-    # Запуск приложения
     root = tk.Tk()
     app = ModernBotApp(root)
     root.mainloop()
