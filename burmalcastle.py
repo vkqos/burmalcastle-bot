@@ -606,26 +606,28 @@ class ModernBotApp:
         import pyautogui
         coords = self.arena_coords
         
+        # ТОЛЬКО ПЕРВЫЙ РАЗ заходим на арену и нажимаем участвовать/подтвердить
         if self.arena_round == 0:
             self.update_status("Захожу на арену...", "working")
             pyautogui.click(coords["entry"]["x"], coords["entry"]["y"])
             time.sleep(2)
+            
+            self.update_status("Нажимаю 'Участвовать'...", "working")
+            pyautogui.click(coords["participate"]["x"], coords["participate"]["y"])
+            time.sleep(2)
+            
+            self.update_status("Нажимаю 'Подтвердить'...", "working")
+            pyautogui.click(coords["confirm"]["x"], coords["confirm"]["y"])
+            time.sleep(2)
+            
+            self.update_status("Ожидаю 60 секунд после подтверждения...", "waiting")
+            for i in range(60):
+                if not self.running or self.paused:
+                    return
+                self.progress_label.config(text=f"⏳ Ожидание перед боями: {60-i} сек")
+                time.sleep(1)
         
-        self.update_status("Нажимаю 'Участвовать'...", "working")
-        pyautogui.click(coords["participate"]["x"], coords["participate"]["y"])
-        time.sleep(2)
-        
-        self.update_status("Нажимаю 'Подтвердить'...", "working")
-        pyautogui.click(coords["confirm"]["x"], coords["confirm"]["y"])
-        time.sleep(2)
-        
-        self.update_status("Ожидаю 60 секунд после подтверждения...", "waiting")
-        for i in range(60):
-            if not self.running or self.paused:
-                return
-            self.progress_label.config(text=f"⏳ Ожидание перед боями: {60-i} сек")
-            time.sleep(1)
-        
+        # Бьем противников с 10 до 5 (без повторного входа на арену)
         for i in range(10, 4, -1):
             if not self.running or self.paused:
                 return
@@ -646,17 +648,22 @@ class ModernBotApp:
                 pyautogui.click(coords["home"]["x"], coords["home"]["y"])
                 time.sleep(2)
                 
+                # Ждем 2 минуты после боя
                 for j in range(120):
                     if not self.running or self.paused:
                         return
                     self.progress_label.config(text=f"⚔ Бой {i}/10 • Ожидание: {120-j} сек")
                     time.sleep(1)
                 
+                # ⚠️ ИЗМЕНЕНИЕ: НЕ нажимаем повторно "Вход на арену"
+                # Мы уже находимся в замке, и следующий бой начнется автоматически
+                # при повторном выборе противника (интерфейс выбора противников все еще открыт)
                 if i > 5:
-                    self.update_status(f"Возвращаюсь на арену...", "working")
-                    pyautogui.click(coords["entry"]["x"], coords["entry"]["y"])
+                    # Просто ждем небольшую паузу перед следующим противником
+                    self.update_status(f"Готовлюсь к следующему бою...", "working")
                     time.sleep(2)
         
+        # После всех боев забираем награду
         self.update_status("Нажимаю 'Забрать награду'...", "working")
         pyautogui.click(coords["reward"]["x"], coords["reward"]["y"])
         time.sleep(2)
